@@ -2,7 +2,7 @@
 # Author: Cody Kala
 # Date: 5/31/2018
 # ===================
-# This module defines the training harness for our models.
+# This module defines functions we use for training our learning models.
 
 import torch
 import torchvision
