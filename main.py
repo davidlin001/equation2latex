@@ -12,8 +12,12 @@ from train import *
 from predict import *
 from utils import *
 
+#########################################################
+#### TODO: Implement basic UI functionality for main ####
+#########################################################
+
 def main():
-    pass
+    raise NotImplementedError
 
 
 if __name__ == "__main__":
