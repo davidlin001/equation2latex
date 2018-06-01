@@ -16,11 +16,9 @@ def read_formulas(formula_file):
             A dictionary whose keys are formula IDs (i.e. the row index in
             |formula_file| where that formula is located) and the values
             are the formulas (as strings).
-        bad_rows : list
-            List of row indices where a UnicodeDecodeError was encountered.
     """
     formulas = {}
-    bad_rows = []
+    bad_rows = []	# For debugging
     count = 0
     with open(formula_file, mode="rb") as f:
         for i, bline in enumerate(f):
@@ -30,7 +28,6 @@ def read_formulas(formula_file):
                 formulas[i] = formula
             except UnicodeDecodeError:
                 bad_rows.append(i)
-    print(count)
     return formulas
 
 
@@ -51,7 +48,7 @@ def read_lookup(lookup_file):
             List of indices where a UnicodeDecodeError was encountered.
     """
     idx_to_image = {}
-    bad_rows = []
+    bad_rows = [] 		# For debugging
     with open(lookup_file, mode="rb") as f:
         for i, bline in enumerate(f):
             try:
@@ -60,7 +57,6 @@ def read_lookup(lookup_file):
                 idx_to_image[int(idx)] = img_name
             except UnicodeDecodeError:
                 bad_rows.append(i)
-    print(len(bad_rows))
     return idx_to_image
 
 
@@ -133,20 +129,18 @@ if __name__ == "__main__":
     val_idx_to_img = read_lookup("im2latex/original/im2latex_validate.lst")
     test_idx_to_img = read_lookup("im2latex/original/im2latex_test.lst")
 
-    print("Sanity check")
-    print("Formula count: {}".format(len(formulas)))
-    print("Lookup count: {}".format(len(train_idx_to_img) + len(val_idx_to_img) + len(test_idx_to_img)))
-    print("Difference: {}".format(len(formulas) - len(train_idx_to_img) - len(val_idx_to_img) - len(test_idx_to_img)))
+    # Sanity check: 31 formulas raised UnicodeDecodeError, so difference should be 31
+    num_formulas = len(formulas)
+    num_examples = len(train_idx_to_img) + len(val_idx_to_img) + len(test_idx_to_img)
+    diff = num_examples - num_formulas 
+    assert(diff == 31)	
 
     # Clean data
     train_formulas, new_train_idx_to_img = clean_formulas_and_lookup(formulas, train_idx_to_img)
     val_formulas, new_val_idx_to_img = clean_formulas_and_lookup(formulas, val_idx_to_img)
     test_formulas, new_test_idx_to_img = clean_formulas_and_lookup(formulas, test_idx_to_img)
 
-    print(len(train_formulas))
-    print(len(val_formulas))
-    print(len(test_formulas))
-
+    # Sanity check: number of formulas and examples should match
     assert(len(train_formulas) == len(new_train_idx_to_img))
     assert(len(val_formulas) == len(new_val_idx_to_img))
     assert(len(test_formulas) == len(new_test_idx_to_img))
@@ -155,5 +149,3 @@ if __name__ == "__main__":
     save_data(train_formulas, new_train_idx_to_img, "im2latex/train_formulas.lst", "im2latex/train_lookup.lst")
     save_data(val_formulas, new_val_idx_to_img, "im2latex/val_formulas.lst", "im2latex/val_lookup.lst")
     save_data(test_formulas, new_test_idx_to_img, "im2latex/test_formulas.lst", "im2latex/test_lookup.lst")
-
-

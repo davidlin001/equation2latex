@@ -6,13 +6,13 @@
 # efficient lookup during training.
 
 import torch
-import torchvision
 import os.path
 from PIL import Image
-from torch.utils import data
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
 
 
-class Im2LatexDataset(data.Dataset):
+class Im2LatexDataset(Dataset):
     """ Dataset class that accesses the images and gold labels for the 
     im2latex-100k dataset. 
     
@@ -61,21 +61,36 @@ class Im2LatexDataset(data.Dataset):
         Inputs:
             idx : int
                 Index between 0 and len(dataset) - 1, inclusive that refers to
-                an image (and label) in the dataset.
+                an image (and formula) in the dataset.
                 
         Outputs:
             image : torch.Tensor
-                The image file corresponding to the given |idx|.
-            formula : string
-                The formula corresponding to the given |idx|.
+                The image file corresponding to the given |idx|..
         """
         formula = self.formulas[idx]
         image_name = self.idx_to_img[idx]
         image_path = os.path.join(self.images_path, image_name)
         image = Image.open(image_path)
-        image = torchvision.transforms.functional.to_tensor(image)
-        return image, formula
+        assert(image.size == (200, 200))
+        image = transforms.functional.to_tensor(image)
+        return image
 
+    def get_formula(self, idx):
+        """ Returns the formula associated to the given |idx|. This is separated from
+        the __getitem__ function because the formulas are strings and thus cannot
+        be stored in torch Tensors.
+
+        Inputs:
+            idx : int
+                Index between 0 and len(dataset) - 1, inclusive that refers to
+                an image (and formula) in the dataset.
+
+        Outputs:
+            formula : string
+                The LaTeX code corresponding to the formula with row index |idx|.
+        """
+        formula = self.idx_to_formula[idx]
+        return formula
 
     def _read_formulas(self, formula_path):
         """ Reads in the formulas from the file at |formula_path|.
@@ -91,8 +106,8 @@ class Im2LatexDataset(data.Dataset):
         """
         with open(formula_path, "r") as f:
             lines = f.readlines()
-            formulas = { i : line.strip() for i, line in enumerate(lines) }
-            return formulas
+            idx_to_formula = {i : line.strip() for i, line in enumerate(lines)}
+            return idx_to_formula
 
 
     def _read_lookup(self, lookup_path):
@@ -134,5 +149,18 @@ if __name__ == "__main__":
     formulas_path = "im2latex/test_formulas.lst"
     lookup_path = "im2latex/test_lookup.lst"
     test_dataset = Im2LatexDataset(images_path, formulas_path, lookup_path)
-    assert(len(test_dataset) == 10352) 
+    assert(len(test_dataset) == 10352)
 
+    # Example iteration over Dataset using for-loop
+    for i in range(len(train_dataset)):
+        example = train_dataset[i]
+        print(i, example.size())
+        if i == 3:
+            break
+
+    # Example iteration using Dataloader
+    dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    for i, batch in enumerate(dataloader):
+        print(batch.size())
+        if i == 3:
+            break
