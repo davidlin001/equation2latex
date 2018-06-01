@@ -87,11 +87,13 @@ def clean_formulas_and_lookup(formulas, idx_to_image):
     new_idx_to_image = {}
 
     # Reassign indices
-    for new_idx, idx in enumerate(sorted(idx_to_image)):
+    new_idx = 0
+    for idx in sorted(idx_to_image):
         if idx not in formulas:
             continue
         new_formulas[new_idx] = formulas[idx]
         new_idx_to_image[new_idx] = idx_to_image[idx]
+        new_idx += 1
 
     return new_formulas, new_idx_to_image
 
