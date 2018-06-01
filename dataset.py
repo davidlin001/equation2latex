@@ -45,13 +45,14 @@ class Im2LatexDataset(Dataset):
             None
         """
         self.images_path = images_path
-        self.formulas = self._read_formulas(formulas_path)
+        self.idx_to_formula = self._read_formulas(formulas_path)
         self.idx_to_img = self._read_lookup(lookup_path)
-        assert(len(self.formulas) == len(self.idx_to_img))
+        assert(len(self.idx_to_formula) == len(self.idx_to_img))
+
 
     def __len__(self):
         """ Returns the number of examples in the dataset. """
-        return len(self.formulas)
+        return len(self.idx_to_formula)
 
 
     def __getitem__(self, idx):
@@ -65,15 +66,14 @@ class Im2LatexDataset(Dataset):
                 
         Outputs:
             image : torch.Tensor
-                The image file corresponding to the given |idx|..
+                The image file corresponding to the given |idx|.
+
         """
-        formula = self.formulas[idx]
         image_name = self.idx_to_img[idx]
         image_path = os.path.join(self.images_path, image_name)
         image = Image.open(image_path)
-        assert(image.size == (200, 200))
         image = transforms.functional.to_tensor(image)
-        return image
+        return image, idx
 
     def get_formula(self, idx):
         """ Returns the formula associated to the given |idx|. This is separated from
@@ -153,14 +153,16 @@ if __name__ == "__main__":
 
     # Example iteration over Dataset using for-loop
     for i in range(len(train_dataset)):
-        example = train_dataset[i]
-        print(i, example.size())
+        image, idx = train_dataset[i]
+        print(i, image.size(), idx)
         if i == 3:
             break
 
     # Example iteration using Dataloader
     dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    for i, batch in enumerate(dataloader):
-        print(batch.size())
+    for i, (batch_images, batch_idxs) in enumerate(dataloader):
+        print(batch_images.size(), batch_idxs.size())
+        print(batch_idxs[0])
+        print(train_dataset.get_formula(int(batch_idxs[0])))
         if i == 3:
             break
