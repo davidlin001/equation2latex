@@ -1,3 +1,20 @@
+# Title: model.py
+# Author: David Lin, Cody Kala
+# Date: 5/31/2018
+# =============================
+# Implements the translation model of Guillaume Genthial and Romain Sauvestre
+# for generating LaTeX code from images of mathematical expressions.
+#
+# The original paper can be found here:
+#
+#   cs231n.stanford.edu/reports/2017/pdfs/815.pdf
+#
+# Their GitHub, which contains a TensorFlow implementation of the model,
+# can be found here:
+#
+#  https://github.com/guillaumegenthial/im2latex
+
+
 import torch
 import torch.nn as nn
 from torch.nn import init
@@ -22,16 +39,4 @@ class TranslationModel(object):
         self.encoder = encoder.build_encoder()
         # FILL IN INPUT INITIALIZATION FOR DECODER
         self.decoder = Decoder(HIDDEN_SIZE, OUTPUT_SIZE)
-
-    def train(self, data):
-        input_length = len(data)
-
-        for i in range(input_length):
-            encoded_input = self.encoder(img)
-        
-    
-    def predict(self, img):
-        pass
-
-
 
