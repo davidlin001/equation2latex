@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from dataset import Im2LatexDataset
+from model import TranslationModel
 
 # File directories
 CHECKPOINT_DIRECTORY = "checkpoints"
@@ -168,14 +169,14 @@ def train_on_batches(model, loss_fn, optimizer, train_dataset, batch_size):
             batch_formulas = batch_formulas.cuda()  # May not work since |batch_formulas| is tuple
 
         # Forward pass
-        # batch_preds = model(batch_features)  
-        # batch_loss = loss_fn(batch_preds, batch_formulas)
-        # loss += batch_loss
+        batch_preds = model(batch_features)  
+        batch_loss = loss_fn(batch_preds, batch_formulas)
+        loss += batch_loss
 
         # Backward pass
-        # optimizer.zero_grad()
-        # loss.backward()
-        # optimizer.step()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
     # Average loss
     loss /= len(train_dataset)
