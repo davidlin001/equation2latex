@@ -8,7 +8,8 @@
 import torch
 import os.path
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
+from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 
 
@@ -44,10 +45,17 @@ class Im2LatexDataset(Dataset):
         Outputs:
             None
         """
+        # Store filepaths for later
         self.images_path = images_path
+        self.formulas_path = formulas_path
+        self.lookup_path = lookup_path
+        
+        # Generate lookup dictionaries for indexing
         self.idx_to_formula = self._read_formulas(formulas_path)
-        self.idx_to_img = self._read_lookup(lookup_path)
-        assert(len(self.idx_to_formula) == len(self.idx_to_img))
+        self.idx_to_img = self._read_images(lookup_path)
+
+        # Reindex so all indices between [0, len(dataset)-1]
+        self._reindex_examples()
 
 
     def __len__(self):
@@ -91,60 +99,63 @@ class Im2LatexDataset(Dataset):
         """
         with open(formula_path, "r") as f:
             lines = f.readlines()
-            idx_to_formula = {i : line.strip() for i, line in enumerate(lines)}
+            idx_to_formula = {idx : line.strip() for idx, line in enumerate(lines)}
             return idx_to_formula
 
 
-    def _read_lookup(self, lookup_path):
+    def _read_images(self, lookup_path):
         """ Reads in the lookup information from the file at |lookup_path| 
         that maps formulas to images.
 
         Inputs:
             lookup_path : string
-                The path to the file that contains the lookup information.
+                The path to the file that contains the mapping between
+                index and image name.
 
-
+        Outputs:
+            idx_to_img : dict
                 A dictionary whose keys are row indices into |formula_path|
-                and whose values are image names.
-        """
+                and whose values are image names
+.        """
         with open(lookup_path, "r") as f:
             lines = f.readlines()
             lines = [line.strip().split() for line in lines]
-            idxs = [int(line[0]) for line in lines]
-            img_names = [line[1] for line in lines]
+            img_names = [line[0] for line in lines]
+            idxs = [int(line[1]) for line in lines]
             idx_to_img = {idx : img_name for idx, img_name in zip(idxs, img_names)}
             return idx_to_img
 
+
+    def _reindex_examples(self):
+        """ Helper function that maps examples to indices in the range 
+        [0, len(dataset)-1].
+    
+        Inputs:
+            None
+
+        Outputs:
+            None, but modifies |self.idx_to_formulas| and |self.idx_to_img|.
+        """
+        # Initialize
+        new_idx_to_formula = dict()
+        new_idx_to_img = dict()
+        new_idx = 0
+
+        # Loop over examples
+        for idx in sorted(self.idx_to_img):
+            new_idx_to_formula[new_idx] = self.idx_to_formula[idx]
+            new_idx_to_img[new_idx] = self.idx_to_img[idx]
+            new_idx += 1
+
+        # Update lookup dicts
+        self.idx_to_formula = new_idx_to_formula
+        self.idx_to_img = new_idx_to_img
+
+
 if __name__ == "__main__":
-    # Sanity checks
-    # Train set
-    images_path = "im2latex/images"
-    formulas_path = "im2latex/train_formulas.lst"
-    lookup_path = "im2latex/train_lookup.lst"
-    train_dataset = Im2LatexDataset(images_path, formulas_path, lookup_path)
-    assert(len(train_dataset) == 83859) 
-
-    # Val set
-    formulas_path = "im2latex/val_formulas.lst"
-    lookup_path = "im2latex/val_lookup.lst"
-    val_dataset = Im2LatexDataset(images_path, formulas_path, lookup_path)
-    assert(len(val_dataset) == 9317)
-
-    # Test set
-    formulas_path = "im2latex/test_formulas.lst"
-    lookup_path = "im2latex/test_lookup.lst"
-    test_dataset = Im2LatexDataset(images_path, formulas_path, lookup_path)
-    assert(len(test_dataset) == 10352)
-
-    # Example iteration over Dataset using for-loop
-    # for i in range(len(train_dataset)):
-    #     image, formula = train_dataset[i]
-    #     img = transforms.functional.to_pil_image(image)
-    #     img.show()
-    #     print(formula)
-    #     input("Press Enter to continue...")
-    #     if i == 3:
-    #         break
+    # Sanity check
+    image_path = "../data/full/images_processed/"
+    formula_path = "../data/full/im2latex_formulas.norm.lst"
 
     # Example iteration using Dataloader
     dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)

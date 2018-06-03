@@ -2,7 +2,7 @@
 # Author: Cody Kala
 # Date: 5/31/2018
 # ===================
-# Module for useful utility functions that do not belong in other modules.
+# Module for useful utility functions that do not belong neatly in other modules.
 
 import torch
 import shutil
