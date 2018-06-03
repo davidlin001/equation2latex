@@ -52,7 +52,7 @@ class Im2LatexDataset(Dataset):
         
         # Generate lookup dictionaries for indexing
         self.idx_to_formula = self._read_formulas(formulas_path)
-        self.idx_to_img = self._read_lookup(lookup_path)
+        self.idx_to_img = self._read_images(lookup_path)
 
         # Reindex so all indices between [0, len(dataset)-1]
         self._reindex_examples()
@@ -103,15 +103,17 @@ class Im2LatexDataset(Dataset):
             return idx_to_formula
 
 
-    def _read_lookup(self, lookup_path):
+    def _read_images(self, lookup_path):
         """ Reads in the lookup information from the file at |lookup_path| 
         that maps formulas to images.
 
         Inputs:
             lookup_path : string
-                The path to the file that contains the lookup information.
+                The path to the file that contains the mapping between
+                index and image name.
 
-
+        Outputs:
+            idx_to_img : dict
                 A dictionary whose keys are row indices into |formula_path|
                 and whose values are image names
 .        """
@@ -122,6 +124,7 @@ class Im2LatexDataset(Dataset):
             idxs = [int(line[1]) for line in lines]
             idx_to_img = {idx : img_name for idx, img_name in zip(idxs, img_names)}
             return idx_to_img
+
 
     def _reindex_examples(self):
         """ Helper function that maps examples to indices in the range 
@@ -148,12 +151,11 @@ class Im2LatexDataset(Dataset):
         self.idx_to_formula = new_idx_to_formula
         self.idx_to_img = new_idx_to_img
 
+
 if __name__ == "__main__":
     # Sanity check
     image_path = "../data/full/images_processed/"
     formula_path = "../data/full/im2latex_formulas.norm.lst"
-
-
 
     # Example iteration using Dataloader
     dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)

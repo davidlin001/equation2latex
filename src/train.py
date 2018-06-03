@@ -83,9 +83,12 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, **kw
     # Training loop
     for t in range(start_epoch, num_epochs + 1):
 
+        print("Training...")
         model, loss = train_on_batches(model, loss_fn, optimizer, 
                                     train_dataset, batch_size)
+        print("Evaluating on training set...")
         train_acc = eval_on_batches(model, train_dataset, batch_size)
+        print("Evaluating on validation set...")
         val_acc = eval_on_batches(model, val_dataset, batch_size) 
 
         # Update run statistics
@@ -163,9 +166,9 @@ def train_on_batches(model, loss_fn, optimizer, dataset, batch_size):
 
     # Process batches
     dataloader = DataLoader(dataset, batch_size=batch_size, 
-    						shuffle=True, collate_fn=collate_fn) 
+                            shuffle=True, collate_fn=collate_fn) 
     for batch_images, batch_formulas in dataloader:
-        
+
         # Load batch to GPU
         if USE_CUDA:
             torch.cuda.empty_cache()
@@ -209,14 +212,14 @@ def eval_on_batches(model, dataset, batch_size):
     total = 0
 
     # Process batches
-    dataloader = DataLoader(dataset, batch_size=batch_size)
+    dataloader = DataLoader(dataset, batch_size=batch_size,
+                            shuffle=True, collate_fn=collate_fn)
     for batch_images, batch_formulas in dataloader:
     
         # Load batch
         if USE_CUDA:
             torch.cuda.empty_cache()
             batch_images = batch_images.cuda()
-            batch_formulas = batch_formulas.cuda()
 
         # Score predictions
         # batch_preds = model(batch_images)
@@ -233,62 +236,64 @@ def eval_on_batches(model, dataset, batch_size):
 
 
 def collate_fn(data):
-	""" Collates the items in the |batch| in preparation for training
-	or evaluation.
+    """ Collates the items in the |batch| in preparation for training
+    or evaluation. This is passed to the DataLoader function in the
+    collate_fn keyword argument.
 
-	Inputs:
-		data : list
-			A list of examples we would like to train or evaluate our 
-			model on. Examples should be of the form (image, formula), 
-			where |image| is a torch tensor representing the raw pixel
-			data of the image, and |formula| is the LaTeX formula
-			associated to the image.
+    Inputs:
+        data : list
+            A list of examples we would like to train or evaluate our 
+            model on. Examples should be of the form (image, formula), 
+            where |image| is a torch tensor representing the raw pixel
+            data of the image, and |formula| is the LaTeX formula
+            associated to the image.
 
-	Outputs:
-		batch : tuple 
-			Contains the collated examples.
-	"""
-	images = [item[0] for item in data]
-	formulas = [item[1] for item in data]
-	images = standardize_dims(images)
-	images = torch.stack(images, dim=0)
-	return images, formulas
+    Outputs:
+        images : torch.tensor of shape (batch_size, C, H, W) 
+            A minibatch of example images.
+        formulas : list of strings
+            A minibatch of example formulas.
+    """
+    images = [item[0] for item in data]
+    formulas = [item[1] for item in data]
+    images = standardize_dims(images)
+    images = torch.stack(images, dim=0)
+    return images, formulas
 
 
 def standardize_dims(images):
-	""" Adds padding to the images in |images| so that the images have the same
-	dimensions. This allows the images to stacked for the training and evaluation
-	steps on mini-batches.
+    """ Adds padding to the images in |images| so that the images have the same
+    dimensions. This allows the images to stacked for the training and evaluation
+    steps on mini-batches.
 
-	Inputs:
-		images : list of torch tensors
-			Contains torch tensors representing the images in the batch.
+    Inputs:
+        images : list of torch tensors
+            Contains torch tensors representing the images in the batch.
 
-	Outputs:
-		new_images : list of torch tensors
-			Contains torch tensors representing the images in the batch. The dimensions
-			of the images are the same.
-	"""
-	# Find largest dimension
-	print(images[0].size())
-	__, max_width, max_height = images[0].size()
-	for image in images:
-		__, width, height = image.size()
-		if width > max_width:
-			max_width = width
-		if height > max_height:
-			max_height = height
+    Outputs:
+        new_images : list of torch tensors
+            Contains torch tensors representing the images in the batch. The dimensions
+            of the images are the same.
+    """
+    # Find largest dimension
+    __, max_width, max_height = images[0].size()
+    for image in images:
+        __, width, height = image.size()
+        if width > max_width:
+            max_width = width
+        if height > max_height:
+            max_height = height
 
-	# Pad images to these new dimensions
-	new_images = []
-	for image in images:
-		pil_image = to_pil_image(image)
-		new_pil_image = Image.new("RGB", (max_width, max_height), color=255)
-		new_pil_image.paste(pil_image, pil_image.getbbox())
-		new_image = to_tensor(new_pil_image)
-		new_images.append(new_image)
+    # Pad images to these new dimensions
+    new_images = []
+    for image in images:
+        pil_image = to_pil_image(image)
+        new_pil_image = Image.new("RGB", (max_width, max_height), color=255)
+        new_pil_image.paste(pil_image, pil_image.getbbox())
+        new_image = to_tensor(new_pil_image)
+        new_images.append(new_image)
 
-	return new_images  
+    return new_images  
 
 
 if __name__ == "__main__":
@@ -312,5 +317,5 @@ if __name__ == "__main__":
     optimizer = None
     loss_fn = None
     run_stats = { "losses" : [], "train_accs" : [], "val_accs" : [] }
-    kwargs = { "save_every" : 0 }
+    kwargs = { "save_every" : 0, "num_epochs" : 1}
     model = train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, **kwargs)
