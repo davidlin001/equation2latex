@@ -14,7 +14,7 @@ from torchvision.transforms.functional import to_pil_image
 from torchvision.transforms.functional import to_tensor
 from PIL import Image
 from dataset import Im2LatexDataset
-
+from metrics import *
 
 # File directories
 CHECKPOINT_DIRECTORY = "checkpoints"
@@ -236,7 +236,7 @@ def eval_on_batches(model, dataset, batch_size):
 
 
 def collate_fn(data):
-    """ Collates the items in the |batch| in preparation for training
+    """ Collates the items in the |data| in preparation for training
     or evaluation. This is passed to the DataLoader function in the
     collate_fn keyword argument.
 
@@ -263,7 +263,7 @@ def collate_fn(data):
 
 def standardize_dims(images):
     """ Adds padding to the images in |images| so that the images have the same
-    dimensions. This allows the images to stacked for the training and evaluation
+    dimensions. This allows the images to stack for the training and evaluation
     steps on mini-batches.
 
     Inputs:
