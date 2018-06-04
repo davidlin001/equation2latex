@@ -5,8 +5,11 @@
 # This module is where the functions in other modules are called in order
 # to train and develop our learning models.
 
+# Standard library imports
 import torch
 import torch.nn as nn
+
+# Personal imports
 from utils.dataset import *
 from utils.utils import *
 from models.im2latex import *

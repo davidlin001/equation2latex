@@ -4,14 +4,19 @@
 # ===================
 # This module defines functions we use for training our learning models.
 
+# Standard library imports
 import torch
 import os.path
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 from torchvision.transforms.functional import to_tensor
 from PIL import Image
-from dataset import Im2LatexDataset
-from model import TranslationModel
+
+# Personal imports
+from utils.dataset import *
+from utils.utils import *
+from models.im2markup import *
+from models.im2latex import *
 from metrics import *
 
 # File directories
