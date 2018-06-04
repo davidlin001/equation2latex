@@ -2,10 +2,15 @@
 # Author: David Lin, Cody Kala
 # Date: 6/3/2018
 # ===============================
-# Implements the encoder stage of our translation model. This architecture
-# is based on the work of Deng et al. Their Arxiv paper can be found here:
+# Implements the encoder stage of the translation model introduced by 
+# Deng at al. Their Arxiv paper can be found here:
 #
 #   https://arxiv.org/pdf/1609.04938.pdf
+#
+# The authors have an TensorFlow implementation of their model available
+# on GitHub:
+#
+#   https://github.com/harvardnlp/im2markup
 
 import torch
 import torch.nn as nn
