@@ -1,29 +1,30 @@
-# Title: cnn.py
+# Title: encoder.py
 # Author: David Lin, Cody Kala
 # Date: 6/3/2018
 # ===================
-# This Module implements the initial CNN layer that transforms the raw
-# images into a feature grid to be used by the encoder. This architecture
-# is based on the work of Deng et al. Their Arxiv paper can be found here:
+# This Module implements the encoder stage of the translation
+# model used by Guillaume Genthial and Romain Sauvestre in
+# their paper, which can be found here:
 #
-#   https://arxiv.org/pdf/1609.04938.pdf
+#   cs231n.stanford.edu/reports/2017/pdfs/815.pdf  
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class CNN(nn.Module):
-    """ The CNN module describes the deep convolutional neural network
-    layer that is used to process the raw images and convert them into
-    feature grids, one for each image.
+class Encoder(nn.Module):
+    """ The Encoder uses a deep convolutional neural network to
+    encode the images. The Encoder encodes the original image
+    of size H x W into a feature map of size H' x W' x C, where
+    C is the number of filters of the last convolutional layer.
 
-    Each feature grid has shape D x H x W, where D denotes the number
-    of channels and H and W are the resulted feature map height and
-    width. 
+    The Encoder defines one vector v_{h', w'} for h' in {1, ..., H'}
+    and w' in {1, ..., W'}. Intuitively, each v_{h', w'} captures
+    the information from one region of the image.
     """
 
     def __init__(self):
-        """ Initializes the layers to be used in the CNN. 
+        """ Initializes the layers to be used in the Encoder.
 
         Inputs:
             None
