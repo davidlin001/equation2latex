@@ -4,21 +4,20 @@
 # ===================
 # This module defines functions we use for training our learning models.
 
+# Standard library imports
 import torch
-import torchvision
 import os.path
-import numpy as np
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 from torchvision.transforms.functional import to_tensor
 from PIL import Image
-from dataset import Im2LatexDataset
-<<<<<<< HEAD:src/train.py
-from model import TranslationModel
-=======
+
+# Personal imports
+from utils.dataset import *
+from utils.utils import *
+from models.im2markup import *
+from models.im2latex import *
 from metrics import *
->>>>>>> features/dataset:src/train.py
 
 # File directories
 CHECKPOINT_DIRECTORY = "checkpoints"
@@ -241,8 +240,8 @@ def eval_on_batches(model, dataset, batch_size):
 
 def collate_fn(data):
     """ Collates the items in the |data| in preparation for training
-    or evaluation. This is passed to the DataLoader function in the
-    collate_fn keyword argument.
+    or evaluation on minibatches. This function is passed to the DataLoader 
+    in the collate_fn keyword argument.
 
     Inputs:
         data : list
@@ -266,9 +265,9 @@ def collate_fn(data):
 
 
 def standardize_dims(images):
-    """ Adds padding to the images in |images| so that the images have the same
-    dimensions. This allows the images to stack for the training and evaluation
-    steps on mini-batches.
+    """ Adds padding to the images in |images| so that all images in the batch have
+    the same dimensions. This allows the batch of images to be stacked into a single torch
+    tensor and passed to the model at once during batch training and batch evaluation.
 
     Inputs:
         images : list of torch tensors

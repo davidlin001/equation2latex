@@ -14,11 +14,8 @@ from torchvision import transforms
 
 
 class Im2LatexDataset(Dataset):
-    """ Dataset class that accesses the images and gold labels for the 
+    """ Dataset class that accesses the images and formulas for the 
     im2latex-100k dataset. 
-    
-    Note: The im2latex-100k training, validation, and test sets are
-    all labeled.
     """
     
     def __init__(self, images_path, formulas_path, lookup_path):
@@ -69,7 +66,7 @@ class Im2LatexDataset(Dataset):
         
         Inputs:
             idx : int
-                Index between 0 and len(dataset) - 1, inclusive that refers to
+                Index between [0, len(dataset)-1], inclusive that refers to
                 an image (and formula) in the dataset.
                 
         Outputs:
@@ -128,7 +125,8 @@ class Im2LatexDataset(Dataset):
 
     def _reindex_examples(self):
         """ Helper function that maps examples to indices in the range 
-        [0, len(dataset)-1].
+        [0, len(dataset)-1], inclusive. This is necessary because some rows
+        of the formula file need to be excluded due to parsing errors.
     
         Inputs:
             None

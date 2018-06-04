@@ -12,6 +12,7 @@ import numpy as np
 import distance
 from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
 
+
 def score(ref, hypo, method):
     """
     Args:
@@ -32,6 +33,7 @@ def score(ref, hypo, method):
         print("WARNING: Invalid method")
         return -1 
 
+
 def edit_distance_score(references, hypotheses):
     """Computes Levenshtein distance between two sequences.
     Params:
@@ -47,6 +49,7 @@ def edit_distance_score(references, hypotheses):
 
     return 1. - edit_dist_tot / len_tot
 
+
 def bleu_score(references, hypotheses):
     """Computes bleu score.
     Params:
@@ -60,6 +63,7 @@ def bleu_score(references, hypotheses):
     references = [[ref] for ref in references] 
     bleu_score = corpus_bleu(references, hypotheses, weights=(0.25, 0.25, 0.25, 0.25))
     return bleu_score
+
 
 def exact_match_score(references, hypotheses):
     """Computes fraction of exact matches
