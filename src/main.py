@@ -6,20 +6,20 @@
 # to train and develop our learning models.
 
 import torch
-import torchvision
-from data_utils import *
-from dataset import *
-from model import *
+import torch.nn as nn
+from utils.dataset import *
+from utils.utils import *
+from models.im2latex import *
+from models.im2markup import *
 from train import *
 from predict import *
-from utils import *
 
 # Filepaths to im2latex data
-images_path = "../data/full/images_processed"
-formulas_path = "../data/full/formulas.norm.lst"
-train_path = "../data/full/train_filter.lst"
-val_path = "../data/full/validate_filter.lst"
-test_path = "../data/full/test_filter.lst"
+images_path = "data/full/images_processed"
+formulas_path = "data/full/formulas.norm.lst"
+train_path = "data/full/train_filter.lst"
+val_path = "data/full/validate_filter.lst"
+test_path = "data/full/test_filter.lst"
 
 def main():
     # Load datasets
@@ -30,8 +30,8 @@ def main():
     # Initialize 
     model = TranslationModel()
     optim = torch.optim.Adam()
-    loss_fn = torch.nn.CrossEntropyLoss()
-    run_stats = {
+    loss_fn = nn.CrossEntropyLoss()
+    run_stats = {} 
 
     # Run experiments
     mode = input("mode? [train/test]")
