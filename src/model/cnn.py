@@ -1,5 +1,5 @@
 # Title: cnn.py
-# Author: Cody Kala
+# Author: David Lin, Cody Kala
 # Date: 6/3/2018
 # ===================
 # This Module implements the initial CNN layer that transforms the raw
