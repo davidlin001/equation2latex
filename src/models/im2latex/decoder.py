@@ -21,7 +21,7 @@ class Decoder(nn.Module):
     long-term dependencies and back-propagation of gradients.
     """
 
-    def __init__(self, vocab_size, cell_type="lstm"):
+    def __init__(self, vocab_size, batch_size, hidden_size, max_length, cell_type="lstm"):
         """ Initializes the Decoder layer.
 
         Inputs:
@@ -35,6 +35,22 @@ class Decoder(nn.Module):
         Outputs:
             None
         """
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.vocab_size = vocab_size
+        self.batch_size = batch_size
+        self.max_length = max_length
+        self.cell_mlp = nn.Sequential(
+            nn.Linear(512, 100),
+            nn.ReLU(),
+            nn.Linear(100, vocab_size)
+            )
+        self.hidden_mlp = nn.Seqeuntial(
+            nn.Linear(512, 100),
+            nn.ReLU(),
+            nn.Linear(100, vocab_size)
+            )
+        self.hidden_mlp = 
         if cell_type == "rnn":
             self.cell = nn.RNN(vocab_size, vocab_size)
         elif cell_type == "gru":
@@ -44,7 +60,7 @@ class Decoder(nn.Module):
         raise NotImplementedError
 
 
-    def forward(self, x):
+    def forward(self, x)
         """ Computes the forward pass for the Decoder layer. 
         
         Inputs:
@@ -56,4 +72,23 @@ class Decoder(nn.Module):
                 A mini-batch of LaTeX decodings. Each row contains |max_length|
                 int IDs that map to tokens in the vocabulary.
         """
-        raise NotImplementedError
+        hidden = self.initHiddenState(x)
+        cell = self.initCellState(x)
+        output, hidden = self.cell(x, (hidden,cell))
+        scores = self.softmax(output)
+
+    def initHiddenState(self, x):
+        #return torch.zeros(self.hidden_size, device=device, requires_grad = True)
+        x = torch.mean(x, 2)
+        x = torch.mean(x, 1)
+        x = self.hidden_mlp(x)
+        return x
+
+    def initCellState(self, x):
+        x = torch.mean(x, 2)
+        x = torch.mean(x, 1)
+        x = self.cell_mlp(x)
+        return x
+
+
+        
