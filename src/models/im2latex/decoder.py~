@@ -82,7 +82,7 @@ class Decoder(nn.Module):
         embedding_matrix = embedding_matrix.view((batch_size,-1))
         all_scores = torch.empty((self.max_length, batch_size, self.vocab_size))
         all_indices = torch.empty((self.max_length, batch_size), dtype=torch.long)
-        for i in range(0, self.max_length):
+        for i in range(1, self.max_length):
             self.hidden, self.cell = self.LSTM_cell(embedding_matrix, (self.hidden,self.cell))
             scores = self.hidden / F.tanh(self.cell)
             indices = torch.argmax(scores, dim = 1)

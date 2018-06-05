@@ -130,9 +130,9 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats,
 
     # Training loop
     for t in range(start_epoch, num_epochs + 1):
-        model, loss = train_on_batches(model, loss_fn, optimizer, train_dataset, batch_size, index_to_token, token_to_index)
-        train_results = eval_on_batches(model, train_dataset, metrics, batch_size, index_to_token, token_to_index)
-        val_results = eval_on_batches(model, val_dataset, metrics, batch_size, index_to_token, token_to_index) 
+        model = train_on_batches(model, loss_fn, optimizer, train_dataset, batch_size, index_to_token, token_to_index)
+        train_results = eval_on_batches(model, train_dataset, metrics, batch_size)
+        val_results = eval_on_batches(model, val_dataset, metrics, batch_size) 
 
         # Update run statistics
         for metric, val in train_results.items():
@@ -242,7 +242,7 @@ def train_on_batches(model, loss_fn, optimizer, dataset, batch_size, index_to_to
     return model, loss
 
 
-def eval_on_batches(model, dataset, metrics, batch_size, index_to_token, token_to_index):
+def eval_on_batches(model, dataset, metrics, batch_size):
     """ Evaluates the |model| on the provided |features| and |labels|.
     Examples are processed in batches of size |batch_size|.
 
@@ -267,35 +267,25 @@ def eval_on_batches(model, dataset, metrics, batch_size, index_to_token, token_t
     # Process batches
     dataloader = DataLoader(dataset, batch_size=batch_size,
                             shuffle=True, collate_fn=collate_fn)
-    for batch_images, batch_formulas in dataloader:    
+    for batch_images, batch_formulas in dataloader:
+    
         # Load batch
         if USE_CUDA:
             torch.cuda.empty_cache()
             batch_images = batch_images.cuda()
 
-        all_scores, all_indices = model(batch_images)
-        all_tokens = all_indices.tolist()
-        all_tokens = [[index_to_token[idx] for idx in ex] for ex in all_tokens]
-        #batch_preds = ["".join(ex) for ex in all_tokens]
+        # Score predictions
+        # batch_preds = model(batch_images)
 
-        # Remove PAD tokens for metric computations
-        batch_preds = [lst[:lst.index(END)+1] if END in lst else lst for lst in all_tokens]
-        batch_formulas = [lst[:lst.index(END)+1] for lst in batch_formulas]
+        ##############################################
+        #### TODO: Specify proper scoring metrics ####
+        #### Raw accuracy is too harsh for our    ####
+        #### models... should use something a bit ####
+        #### more holistic.                       ####
+        ##############################################
 
-        #batch_preds = all_tokens[:all_tokens.index(END) + 1] 
-        #batch_formulas = batch_formulas[:batch_formulas.index(END) + 1]
-
-        # Compute metric values
-        batch_results = collections.defaultdict(list)
-        for mname, mfunc in metrics.items():
-            batch_results[mname].append(mfunc(batch_preds, batch_formulas))
-            
-    # Average the results
-    results = dict()
-    for mname, mvals in batch_results.items():
-        results[mname] = sum(mvals) / len(mvals)
-
-    return results
+    acc = 0
+    return acc
 
 
 def collate_fn(data):
