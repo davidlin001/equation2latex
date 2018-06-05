@@ -9,16 +9,22 @@ import torchvision
 import os.path
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
+import torch.nn as nn
+import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 from torchvision.transforms.functional import to_tensor
 from PIL import Image
 from dataset import Im2LatexDataset
-<<<<<<< HEAD:src/train.py
+
+# Add path to models directory, so we can import from there
+sys.path.insert(0, './model')
+#<<<<<<< HEAD:src/train.py
 from model import TranslationModel
-=======
+#=======
 from metrics import *
->>>>>>> features/dataset:src/train.py
+#>>>>>>> features/dataset:src/train.py
 
 # File directories
 CHECKPOINT_DIRECTORY = "checkpoints"
@@ -179,8 +185,16 @@ def train_on_batches(model, loss_fn, optimizer, dataset, batch_size):
             batch_images = batch_images.cuda()
 
         # Forward pass
-        batch_preds = model(batch_features)  
-        batch_loss = loss_fn(batch_preds, batch_formulas)
+        batch_preds = model(batch_images)
+        batch_loss = 0
+        for i in range(len(batch_images)):
+            for j in range(len(batch_images[0])):
+                one_hot = 
+                batch_loss += loss_fn(batch_preds[i], one_hot)
+
+                              
+            batch_loss += loss_fn(batch_preds[i], batch_formulas[i])
+        #batch_loss = loss_fn(batch_preds, batch_formulas)
         loss += batch_loss
 
         # Backward pass
@@ -305,11 +319,11 @@ if __name__ == "__main__":
     # Verify that everything is working as it should...
     
     # Filepaths to datasets
-    images_path = "../data/full/images_processed"
-    formulas_path = "../data/full/formulas.norm.lst"
-    train_path = "../data/full/train_filter.lst"
-    validate_path = "../data/full/validate_filter.lst"
-    test_path = "../data/full/test_filter.lst"
+    images_path = "../data/sample/images_processed"
+    formulas_path = "../data/sample/formulas.norm.lst"
+    train_path = "../data/sample/train_filter.lst"
+    validate_path = "../data/sample/validate_filter.lst"
+    test_path = "../data/sample/test_filter.lst"
 
     # Load the datasets
     train_dataset = Im2LatexDataset(images_path, formulas_path, train_path)
@@ -317,9 +331,9 @@ if __name__ == "__main__":
     test_dataset = Im2LatexDataset(images_path, formulas_path, test_path)
 
     # Try out the train function
-    model = None
-    optimizer = None
-    loss_fn = None
+    model = TranslationModel()
+    optimizer = optim.Adam(model.parameters())
+    loss_fn = nn.CrossEntropyLoss()
     run_stats = { "losses" : [], "train_accs" : [], "val_accs" : [] }
     kwargs = { "save_every" : 0, "num_epochs" : 1}
     model = train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, **kwargs)

@@ -13,25 +13,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-def build_encoder():
-    return nn.Sequential(
-        # 4 CNN/ Max Pool, CNN/ Max pool/ CNN/ Output
-        # Check in_channels on first one
-        nn.Conv2d(in_channels = 1, out_channels = 64, kernel_size = 3, padding = 1, stride = 1),
-        nn.ReLU(),
-        nn.MaxPool2d(kernel_size = 2, stride = 2),
-        nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 3, padding = 1, stride = 1),
-        nn.ReLU(),
-        nn.MaxPool2d(kernel_size = 2, stride = 2),
-        nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 3, padding = 1, stride = 1),
-        nn.ReLU(),
-        nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = 3, padding = 1, stride = 1),
-        nn.ReLU(),
-        nn.MaxPool2d(kernel_size = 2, stride = 2),
-        nn.Conv2d(in_channels = 256, out_channels = 512, kernel_size = 3, padding = 1, stride = 1),
-        nn.ReLU(),
-        # Can replace this and the previous max pooling layer with a cnn of stride 2
-        nn.MaxPool2d(kernel_size = 2, stride = 2),
-        nn.Conv2d(in_channels = 512, out_channels = 512, kernel_size = 3, padding = 1, stride = 1),
-        nn.ReLU()
-    )
+class Encoder(nn.Module):
+    def __init__(self):
+        super(Encoder,self).__init__()
+        self.layers = nn.Sequential(
+            # 4 CNN/ Max Pool, CNN/ Max pool/ CNN/ Output
+            # Check in_channels on first one
+            nn.Conv2d(in_channels = 1, out_channels = 64, kernel_size = 3, padding = 1, stride = 1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size = 2, stride = 2),
+            nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 3, padding = 1, stride = 1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size = 2, stride = 2),
+            nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 3, padding = 1, stride = 1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = 3, padding = 1, stride = 1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size = 2, stride = 2),
+            nn.Conv2d(in_channels = 256, out_channels = 512, kernel_size = 3, padding = 1, stride = 1),
+            nn.ReLU(),
+            # Can replace this and the previous max pooling layer with a cnn of stride 2
+            nn.MaxPool2d(kernel_size = 2, stride = 2),
+            nn.Conv2d(in_channels = 512, out_channels = 512, kernel_size = 3, padding = 1, stride = 1),
+            nn.ReLU()
+        )
+
+    def forward(self, inputs):
+        return self.layers(inputs)

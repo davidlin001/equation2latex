@@ -33,10 +33,12 @@ import matplotlib.gridspec as gridspec
 import encoder
 from decoder import Decoder
 
-class TranslationModel(object):
+class TranslationModel(nn.Module):
     def __init__(self):
         super(TranslationModel, self).__init__()
         self.encoder = encoder.build_encoder()
         # FILL IN INPUT INITIALIZATION FOR DECODER
-        self.decoder = Decoder(HIDDEN_SIZE, OUTPUT_SIZE)
+        self.decoder = Decoder(20, 10)
 
+    def forward(self, input):
+        pass
