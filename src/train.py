@@ -7,26 +7,44 @@
 # Standard library imports
 import torch
 import os.path
+from string import Template
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 from torchvision.transforms.functional import to_tensor
 from PIL import Image
 
 # Personal imports
-from utils.dataset import *
+from utils.dataset import Im2LatexDataset
 from utils.utils import *
-from models.im2markup import *
-from models.im2latex import *
+from models.im2markup import Im2Markup
+from models.im2latex import Im2Latex
 from metrics import *
 
 # File directories
-CHECKPOINT_DIRECTORY = "checkpoints"
-PLOTS_DIRECTORY = "plots"
+CKPT_DIR = "checkpoints"
+CKPT_NAME = "checkpoint-epoch-${epoch}"
+CKPT_PATH = Template(os.path.join(CKPT_DIR, CKPT_PATH))
+PLOT_DIR = "plots"
+PLOT_NAME = "${dset}-${metric}-${epoch}.png"
+PLOT_PATH = Template(os.path.join(PLOT_DIR, PLOT_PATH))
+PLOT_TITLE = Template("${dset} ${metric} vs epoch")
 
 # Use GPU if available, otherwise use CPU
 USE_CUDA = torch.cuda.is_available()
 
-def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, **kwargs):
+###########################################################################
+#### TODO: Find a way to process images of similar sizes. Currently,   ####
+#### images will be placed into mini-batches randomly, but often times ####
+#### there will be at least one image that has the largest dimension,  ####
+#### o we end up training having standardize the images to that size   ####
+#### to process the images as a batch. If we can somehow group the     ####
+#### images inte buckets as suggested by the papers, then this would   ####
+#### improve training and evaluatio efficiency considerably.           ####
+###########################################################################
+
+
+def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, 
+            metrics, **kwargs):
     """ This function trains the given |model| on the provided
     |features| and |labels|. The model parameters are optimized
     with respect to the |loss_fn| using the given |optimizer|.
@@ -47,10 +65,24 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, **kw
         val_dataset : torch.utils.data.Dataset
             A Dataset instance containing the validation images and their
             LaTeX formulas.
-        run_stats : dict
-            Stores run statistics that we would like to track
+        run_stats : dict of defaultdicts
+            Stores run metric values that we would like to track
             throughout training, such as the training loss,
-            training and validation accuracies, etc.
+            training and validation accuracies, etc. 
+            
+            run_stats should be a dictionary with three keys: "train",
+            "val", and "test". The value of each key is a defaultdict of lists,
+            used to store the values of metrics computed during the course of
+            training and evaluation. 
+            
+            The keys to the defaultdicts will be the names of the metrics, and 
+            the values will be lists storing the computed values.
+        
+        metrics : dict of callbacks
+            Stores the metrics we would like to evaluate our model on. The
+            keys are the names of the metrics, and the values are the callables
+            used to evaluate a mini-batch of examples at onces.
+
         keyword arguments:
             batch_size : int
                 The batch size to use for training
@@ -86,25 +118,15 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, **kw
     # Training loop
     for t in range(start_epoch, num_epochs + 1):
 
-        print("Training...")
-        model, loss = train_on_batches(model, loss_fn, optimizer, 
-                                    train_dataset, batch_size)
-        print("Evaluating on training set...")
-        train_acc = eval_on_batches(model, train_dataset, batch_size)
-        print("Evaluating on validation set...")
-        val_acc = eval_on_batches(model, val_dataset, batch_size) 
+        model = train_on_batches(model, loss_fn, optimizer, train_dataset, batch_size)
+        train_results = eval_on_batches(model, train_dataset, metrics, batch_size)
+        val_results = eval_on_batches(model, val_dataset, metrics, batch_size) 
 
         # Update run statistics
-        run_stats["losses"].append(loss)
-        run_stats["train_accs"].append(train_acc)
-        run_stats["val_accs"].append(val_acc)
-
-        ##############################################
-        #### TODO: Specify proper scoring metrics ####
-        #### Raw accuracy is too harsh for our    ####
-        #### models... should use something a bit ####
-        #### more holistic.                       ####
-        ##############################################
+        for metric, val in train_results.items():
+            run_stats["train"][metric].append(val)
+        for metric, val in val_results.items():
+            run_stats["val"][metric].append(val)
 
         # Save checkpoint
         if save_every != 0 and t % save_every == 0:
@@ -120,21 +142,32 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, **kw
             save_checkpoint(state, checkpoint_name)
 
             # Plot run statistics
-            losses_name = os.path.join(PLOTS_DIRECTORY, 
-                                    "losses-epoch-{}.png".format(t))
-            train_accs_name = os.path.join(PLOTS_DIRECTORY, 
-                                    "train-accs-epoch-{}.png".format(t))
-            val_accs_name = os.path.join(PLOTS_DIRECTORY, 
-                                    "val-accs-epoch-{}.png".format(t))
-            generate_time_series_plot(run_stats["losses"], losses_name, 
-                                    ylabel="Loss", 
-                                    title="Loss vs. Epoch")
-            generate_time_series_plot(run_stats["train_accs"], train_accs_name, 
-                                    ylabel="Train Accuracy", 
-                                    title="Train Accuracy vs. Epoch")
-            generate_time_series_plot(run_stats["val_accs"], val_accs_name, 
-                                    ylabel="Validation Accuracy",
-                                    title="Validation Accuracy vs. Epoch")
+            # TODO: Code below should be factored into a utility function
+            for metric in metrics:
+                train_keywords = { 
+                    "dset" : "train", 
+                    "metric" : metric, 
+                    "epoch" : t 
+                }
+                train_plot_path = os.path.join(PLOT_PATH.substitute(keywords))
+                train_plot_title = PLOT_TITLE.substitute(keywords)
+                generate_time_series_plot(run_stats["train"][metric], 
+                                          train_plot_path,
+                                          ylabel=metric,
+                                          title=train_plot_title)
+    
+                val_key_words = { 
+                    "dset" : "val", 
+                    "metric" : metric, 
+                    "epoch" : t,
+                }
+                val_plot_path = os.path.join(PLOT_PATH.substitute(keywords))
+                val_plot_title = PLOT_TITLE.substitue(keywords)
+                generate_time_series_plot(run_stats["val"][metric],
+                                          val_plot_path,
+                                          ylabel=metric,
+                                          title=val_plot_title)
+
 
     return model
 
@@ -192,7 +225,7 @@ def train_on_batches(model, loss_fn, optimizer, dataset, batch_size):
     return model, loss
 
 
-def eval_on_batches(model, dataset, batch_size):
+def eval_on_batches(model, dataset, metrics, batch_size):
     """ Evaluates the |model| on the provided |features| and |labels|.
     Examples are processed in batches of size |batch_size|.
 
@@ -248,12 +281,15 @@ def collate_fn(data):
             A list of examples we would like to train or evaluate our 
             model on. Examples should be of the form (image, formula), 
             where |image| is a torch tensor representing the raw pixel
-            data of the image, and |formula| is the LaTeX formula
-            associated to the image.
+            data of the image, and |formula| is a string representing
+            the LaTeX formula. 
+            
+            The images in |data| may not all be the same size, so to account 
+            for this we must standardize across the spatial dimensions. 
 
     Outputs:
         images : torch.tensor of shape (batch_size, C, H, W) 
-            A minibatch of example images.
+            A minibatch of example images. 
         formulas : list of strings
             A minibatch of example formulas.
     """
