@@ -21,7 +21,7 @@ class Decoder(nn.Module):
     long-term dependencies and back-propagation of gradients.
     """
 
-    def __init__(self, vocab_size, batch_size, hidden_size, max_length, cell_type="lstm"):
+    def __init__(self, vocab_size, batch_size, hidden_size, max_length, embed_size, cell_type="lstm"):
         """ Initializes the Decoder layer.
 
         Inputs:
@@ -36,37 +36,43 @@ class Decoder(nn.Module):
             None
         """
         super().__init__()
+
+        # Save model parameters
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
         self.batch_size = batch_size
         self.max_length = max_length
-        self.cell_mlp = nn.Sequential(
-            nn.Linear(512, 100),
-            nn.ReLU(),
-            nn.Linear(100, vocab_size)
-            )
-        self.hidden_mlp = nn.Seqeuntial(
-            nn.Linear(512, 100),
-            nn.ReLU(),
-            nn.Linear(100, vocab_size)
-            )
-        self.hidden_mlp = 
+
+        # MLPs for cell initialization
+        if cell_type == "lstm":
+            self.cell_mlp = nn.Sequential(
+                nn.Linear(512, 100),
+                nn.ReLU(),
+                nn.Linear(100, vocab_size)
+                )
+            self.hidden_mlp = nn.Seqeuntial(
+                nn.Linear(512, 100),
+                nn.ReLU(),
+                nn.Linear(100, vocab_size)
+                )
+        self.embed_size = embed_size
+        self.embedding = nn.Embedding(vocab_size, embed_size)
+        # Initialize cell type
         if cell_type == "rnn":
-            self.cell = nn.RNN(vocab_size, vocab_size)
+            self.cell = nn.RNNCell(vocab_size, vocab_size)
         elif cell_type == "gru":
-            self.cell = nn.GRU(vocab_size, vocab_size)
+            self.cell = nn.GRUCell(vocab_size, vocab_size)
         elif cell_type == "lstm":
-            self.cell = nn.LSTM(vocab_size, vocab_size)
+            self.cell = nn.LSTMCell(vocab_size, vocab_size)
         raise NotImplementedError
-
-
-    def forward(self, x)
+    
+    def forward(self, x):
         """ Computes the forward pass for the Decoder layer. 
         
         Inputs:
             x : torch.Tensor of shape (batch_size, H', W', C)
                 A mini-batch of feature maps from the Encoder layer.
-
+    
         Outputs:
             out : torch.Tensor of shape (batch_size, max_length)
                 A mini-batch of LaTeX decodings. Each row contains |max_length|
@@ -74,8 +80,20 @@ class Decoder(nn.Module):
         """
         hidden = self.initHiddenState(x)
         cell = self.initCellState(x)
-        output, hidden = self.cell(x, (hidden,cell))
-        scores = self.softmax(output)
+        
+        # Fixing <START>, <END>, <PAD> as indices 0, 1, 2
+        embedding_matrix = self.embedding(torch.LongTensor([0]*self.batch_size))
+        embedding_matrix = embedding_matrix.view((batch_size,-1))
+        all_scores = torch.empty((max_length, batch_size, vocab_size))
+        all_indices = torch.empty((max_length, batch_size))
+        for i in range(1, self.max_length):
+            hidden, cell = self.cell(embedding_matrix, (hidden,cell))
+            scores = hidden / F.Tanh(cell)
+            indices = torch.argmax(scores, dim = 1)
+            all_scores[i,:,:] = scores
+            all_indices[i,:] = indices
+            embedding_matrix = self.embedding(indices).view((batch_size, -1))
+        return all_scores, all_indices
 
     def initHiddenState(self, x):
         #return torch.zeros(self.hidden_size, device=device, requires_grad = True)
