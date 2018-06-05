@@ -32,7 +32,8 @@ class Encoder(nn.Module):
         Outputs:
             None, but the layers are initialized.
         """
-        self.conv1 = nn.Conv2d(in_channels = 1, out_channels = 64,
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels = 3, out_channels = 64,
                                kernel_size = 3, padding = 1, stride = 1)
         self.conv2 = nn.Conv2d(in_channels = 64, out_channels = 128,
                                kernel_size = 3, padding = 1, stride = 1)

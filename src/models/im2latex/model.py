@@ -38,11 +38,7 @@ class Im2Latex(nn.Module):
         maps from the Encoder layer.
     """
     
-    ####################################################################
-    #### TODO: Edit signatures to include other necessary arguments ####
-    ####################################################################
-
-    def __init__(self, encoder_config, decoder_config):
+    def __init__(self, decoder_config):
         """ Initializes the stages of the Im2Latex model. 
         
         Inputs:
@@ -57,7 +53,7 @@ class Im2Latex(nn.Module):
             None, but initializes the layers.
         """
         super().__init__()
-        self.encoder = Encoder(**encoder_config)
+        self.encoder = Encoder()
         self.decoder = Decoder(**decoder_config)
 
 
@@ -77,7 +73,9 @@ class Im2Latex(nn.Module):
                 A mini-batch of idxs into the vocabulary that that can
                 be decoded to determine the predicted LaTeX.
         """
+        print("Before encoder", x.shape)
         out = self.encoder(x)
+        print("After encoder", out.shape)
         out = self.decoder(out)
         return out
 

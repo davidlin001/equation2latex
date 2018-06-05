@@ -21,7 +21,7 @@ class Decoder(nn.Module):
     long-term dependencies and back-propagation of gradients.
     """
 
-    def __init__(self, vocab_size, batch_size, hidden_size, max_length, embed_size, cell_type="lstm"):
+    def __init__(self, vocab_size, max_length, embed_size):
         """ Initializes the Decoder layer.
 
         Inputs:
@@ -38,39 +38,32 @@ class Decoder(nn.Module):
         super().__init__()
 
         # Save model parameters
-        self.hidden_size = hidden_size
         self.vocab_size = vocab_size
-        self.batch_size = batch_size
         self.max_length = max_length
 
         # MLPs for cell initialization
-        if cell_type == "lstm":
-            self.cell_mlp = nn.Sequential(
-                nn.Linear(512, 100),
-                nn.ReLU(),
-                nn.Linear(100, vocab_size)
-                )
-            self.hidden_mlp = nn.Seqeuntial(
-                nn.Linear(512, 100),
-                nn.ReLU(),
-                nn.Linear(100, vocab_size)
-                )
+        self.cell_mlp = nn.Sequential(
+            nn.Linear(512, 100),
+            nn.ReLU(),
+            nn.Linear(100, vocab_size)
+            )
+        self.hidden_mlp = nn.Sequential(
+            nn.Linear(512, 100),
+            nn.ReLU(),
+            nn.Linear(100, vocab_size)
+            )
         self.embed_size = embed_size
         self.embedding = nn.Embedding(vocab_size, embed_size)
+        self.hidden = None
+        self.cell = None
         # Initialize cell type
-        if cell_type == "rnn":
-            self.cell = nn.RNNCell(vocab_size, vocab_size)
-        elif cell_type == "gru":
-            self.cell = nn.GRUCell(vocab_size, vocab_size)
-        elif cell_type == "lstm":
-            self.cell = nn.LSTMCell(vocab_size, vocab_size)
-        raise NotImplementedError
-    
+        self.LSTM_cell = nn.LSTMCell(embed_size, vocab_size)
+        
     def forward(self, x):
         """ Computes the forward pass for the Decoder layer. 
         
         Inputs:
-            x : torch.Tensor of shape (batch_size, H', W', C)
+            x : torch.Tensor of shape (batch_size, D, W', H')
                 A mini-batch of feature maps from the Encoder layer.
     
         Outputs:
@@ -78,17 +71,20 @@ class Decoder(nn.Module):
                 A mini-batch of LaTeX decodings. Each row contains |max_length|
                 int IDs that map to tokens in the vocabulary.
         """
-        hidden = self.initHiddenState(x)
-        cell = self.initCellState(x)
-        
+        #hidden = Variable(hidden.data, requires_grad = True)
+        #cell = Variable(cell.data, requires_grad = True)
+        batch_size = x.shape[0]
+        self.hidden = self.initHiddenState(x)
+        self.cell = self.initCellState(x)
+
         # Fixing <START>, <END>, <PAD> as indices 0, 1, 2
-        embedding_matrix = self.embedding(torch.LongTensor([0]*self.batch_size))
+        embedding_matrix = self.embedding(torch.LongTensor([0]*batch_size))
         embedding_matrix = embedding_matrix.view((batch_size,-1))
-        all_scores = torch.empty((max_length, batch_size, vocab_size))
-        all_indices = torch.empty((max_length, batch_size))
+        all_scores = torch.empty((self.max_length, batch_size, self.vocab_size))
+        all_indices = torch.empty((self.max_length, batch_size))
         for i in range(1, self.max_length):
-            hidden, cell = self.cell(embedding_matrix, (hidden,cell))
-            scores = hidden / F.Tanh(cell)
+            self.hidden, self.cell = self.LSTM_cell(embedding_matrix, (self.hidden,self.cell))
+            scores = self.hidden / F.tanh(self.cell)
             indices = torch.argmax(scores, dim = 1)
             all_scores[i,:,:] = scores
             all_indices[i,:] = indices
@@ -97,14 +93,14 @@ class Decoder(nn.Module):
 
     def initHiddenState(self, x):
         #return torch.zeros(self.hidden_size, device=device, requires_grad = True)
+        x = torch.mean(x, 3)
         x = torch.mean(x, 2)
-        x = torch.mean(x, 1)
         x = self.hidden_mlp(x)
         return x
 
     def initCellState(self, x):
+        x = torch.mean(x, 3)
         x = torch.mean(x, 2)
-        x = torch.mean(x, 1)
         x = self.cell_mlp(x)
         return x
 

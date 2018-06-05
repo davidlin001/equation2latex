@@ -6,29 +6,42 @@
 
 # Standard library imports
 import torch
+import collections
 import os.path
+import torch.optim as optim
+import torch.nn as nn
 from string import Template
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 from torchvision.transforms.functional import to_tensor
 from PIL import Image
+import sys
+sys.path.insert(0, "./models/im2markup/")
+sys.path.insert(0, "./models/im2latex/")
 
 # Personal imports
 from utils.dataset import Im2LatexDataset
 from utils.utils import *
-from models.im2markup import Im2Markup
-from models.im2latex import Im2Latex
+from models.im2markup.model import Im2Markup
+from models.im2latex.model import Im2Latex
 from metrics import *
 
 # File directories
 CKPT_DIR = "checkpoints"
 CKPT_NAME = "checkpoint-epoch-${epoch}"
-CKPT_PATH = Template(os.path.join(CKPT_DIR, CKPT_PATH))
+CKPT_PATH = Template(os.path.join(CKPT_DIR, CKPT_NAME))
 PLOT_DIR = "plots"
 PLOT_NAME = "${dset}-${metric}-${epoch}.png"
-PLOT_PATH = Template(os.path.join(PLOT_DIR, PLOT_PATH))
+PLOT_PATH = Template(os.path.join(PLOT_DIR, PLOT_NAME))
 PLOT_TITLE = Template("${dset} ${metric} vs epoch")
 
+START = "<START>"
+END = "<END>"
+PAD = "<PAD>"
+UNK = "<UNK>"
+
+MAX_LENGTH = 50
+EMBED_SIZE = 80
 # Use GPU if available, otherwise use CPU
 USE_CUDA = torch.cuda.is_available()
 
@@ -44,7 +57,7 @@ USE_CUDA = torch.cuda.is_available()
 
 
 def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, 
-            metrics, **kwargs):
+            metrics, index_to_token, token_to_index, **kwargs):
     """ This function trains the given |model| on the provided
     |features| and |labels|. The model parameters are optimized
     with respect to the |loss_fn| using the given |optimizer|.
@@ -109,7 +122,7 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats,
     """
 
     # Get keyword parameter values
-    batch_size = kwargs.get("batch_size", 64)
+    batch_size = kwargs.get("batch_size", 20)
     start_epoch = kwargs.get("start_epoch", 1)
     num_epochs = kwargs.get("num_epochs", 20)
     save_every = kwargs.get("save_every", 10)
@@ -117,8 +130,7 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats,
 
     # Training loop
     for t in range(start_epoch, num_epochs + 1):
-
-        model = train_on_batches(model, loss_fn, optimizer, train_dataset, batch_size)
+        model = train_on_batches(model, loss_fn, optimizer, train_dataset, batch_size, index_to_token, token_to_index)
         train_results = eval_on_batches(model, train_dataset, metrics, batch_size)
         val_results = eval_on_batches(model, val_dataset, metrics, batch_size) 
 
@@ -172,7 +184,7 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats,
     return model
 
 
-def train_on_batches(model, loss_fn, optimizer, dataset, batch_size):
+def train_on_batches(model, loss_fn, optimizer, dataset, batch_size, index_to_token, token_to_index):
     """ Trains the |model| for a single epoch on the provided |dataset|. 
     The model is optimized with respect to the |loss_fn| using the
     |optimizer|. Examples are processed in batches of size |batch_size|. 
@@ -204,22 +216,27 @@ def train_on_batches(model, loss_fn, optimizer, dataset, batch_size):
     dataloader = DataLoader(dataset, batch_size=batch_size, 
                             shuffle=True, collate_fn=collate_fn) 
     for batch_images, batch_formulas in dataloader:
-
+        loss_i = 0.0
         # Load batch to GPU
         if USE_CUDA:
             torch.cuda.empty_cache()
             batch_images = batch_images.cuda()
 
         # Forward pass
-        batch_preds = model(batch_features)  
-        batch_loss = loss_fn(batch_preds, batch_formulas)
-        loss += batch_loss
-
+        all_scores, all_indices = model(batch_images)
+        #batch_preds = model(batch_images) 
+        max_length, batch_size = all_indices.shape
+        for i in range(max_length):
+            scores_i = all_scores[i, :, :]
+            targets_i = [token_to_index.get(s, 3) for s in np.array(batch_formulas)[:,i]]
+            targets_i = torch.LongTensor(targets_i)
+            loss_i += torch.sum(loss_fn(scores_i, targets_i))
+            
         # Backward pass
         optimizer.zero_grad()
-        loss.backward()
+        loss_i.backward()
         optimizer.step()
-
+        loss += loss_i
     # Average loss
     loss /= len(dataset)
     return model, loss
@@ -290,13 +307,14 @@ def collate_fn(data):
     Outputs:
         images : torch.tensor of shape (batch_size, C, H, W) 
             A minibatch of example images. 
-        formulas : list of strings
-            A minibatch of example formulas.
+        formulas : list of list of string
+            A minibatch of example formulas. The formulas tokenized
+            and padded to max length.
     """
     images = [item[0] for item in data]
-    formulas = [item[1] for item in data]
     images = standardize_dims(images)
     images = torch.stack(images, dim=0)
+    formulas = [item[1] for item in data]
     return images, formulas
 
 
@@ -334,27 +352,49 @@ def standardize_dims(images):
 
     return new_images  
 
-
+def generate_vocab_mapping(vocab_path):
+    index_to_token = {0: START, 1: END, 2: PAD, 3:UNK}
+    token_to_index = {START: 0, END: 1, PAD: 2, UNK:3}
+    with open(vocab_path,"r") as f:
+        idx = 4
+        for token in f:
+            token = token.strip()
+            index_to_token[idx] = token
+            token_to_index[token] = idx
+            idx += 1
+    return index_to_token, token_to_index
+        
+    
 if __name__ == "__main__":
 
     # Verify that everything is working as it should...
     
     # Filepaths to datasets
-    images_path = "../data/full/images_processed"
-    formulas_path = "../data/full/formulas.norm.lst"
-    train_path = "../data/full/train_filter.lst"
-    validate_path = "../data/full/validate_filter.lst"
-    test_path = "../data/full/test_filter.lst"
-
+    images_path = "../data/sample/images_processed"
+    formulas_path = "../data/sample/formulas.norm.lst"
+    train_path = "../data/sample/train_filter.lst"
+    validate_path = "../data/sample/validate_filter.lst"
+    test_path = "../data/sample/test_filter.lst"
+    vocab_path = "../data/sample/latex_vocab.txt"
     # Load the datasets
     train_dataset = Im2LatexDataset(images_path, formulas_path, train_path)
     val_dataset = Im2LatexDataset(images_path, formulas_path, validate_path)
     test_dataset = Im2LatexDataset(images_path, formulas_path, test_path)
 
+
+    index_to_token, token_to_index = generate_vocab_mapping(vocab_path)
+
     # Try out the train function
-    model = None
-    optimizer = None
-    loss_fn = None
-    run_stats = { "losses" : [], "train_accs" : [], "val_accs" : [] }
-    kwargs = { "save_every" : 0, "num_epochs" : 1}
-    model = train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, **kwargs)
+    decoder_config = {"vocab_size": len(index_to_token), "max_length": MAX_LENGTH, "embed_size": EMBED_SIZE}
+    model = Im2Latex(decoder_config)
+    optimizer = optim.Adam(model.parameters())
+    loss_fn = nn.CrossEntropyLoss()
+    run_stats = {
+        "train" : collections.defaultdict(list),
+        "val" : collections.defaultdict(list),
+        "test" : collections.defaultdict(list),
+    }
+    kwargs = {}
+    metrics = {"edit_distance": edit_distance_score}
+    model = train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, metrics, index_to_token, token_to_index, **kwargs)
+

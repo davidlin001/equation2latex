@@ -12,13 +12,12 @@ from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 
-
 class Im2LatexDataset(Dataset):
     """ Dataset class that accesses the images and formulas for the 
     im2latex-100k dataset. 
     """
     
-    def __init__(self, images_path, formulas_path, lookup_path):
+    def __init__(self, images_path, formulas_path, lookup_path, max_length = 50):
         """ Initializes the Dataset object.
 
         Inputs:
@@ -38,7 +37,9 @@ class Im2LatexDataset(Dataset):
                         The line number where formula is in |formula_path|.
                     image_name : string
                         The name of the image in |images_path|.
-
+            max_length : int
+                The longest allowed length of tokens in a LaTeX formula.
+                        
         Outputs:
             None
         """
@@ -46,7 +47,13 @@ class Im2LatexDataset(Dataset):
         self.images_path = images_path
         self.formulas_path = formulas_path
         self.lookup_path = lookup_path
-        
+        self.max_length = max_length
+ 
+        # Special tokens for start, end, and padding
+        self._start = "<START>"
+        self._end = "<END>"
+        self._pad = "<PAD>"
+
         # Generate lookup dictionaries for indexing
         self.idx_to_formula = self._read_formulas(formulas_path)
         self.idx_to_img = self._read_images(lookup_path)
@@ -96,7 +103,15 @@ class Im2LatexDataset(Dataset):
         """
         with open(formula_path, "r") as f:
             lines = f.readlines()
-            idx_to_formula = {idx : line.strip() for idx, line in enumerate(lines)}
+            tokenized_lines = [line.strip().split() for line in lines]
+            tokenized_lines = [[self._start, *tokens, self._end] for tokens in tokenized_lines] 
+            idx_to_formula = dict()
+            for idx, line in enumerate(tokenized_lines):
+                num_tokens = len(line)
+                num_pad = max(0, self.max_length - num_tokens)
+                line = line + [self._pad] * num_pad
+                idx_to_formula[idx] = line
+                
             return idx_to_formula
 
 
@@ -141,6 +156,8 @@ class Im2LatexDataset(Dataset):
 
         # Loop over examples
         for idx in sorted(self.idx_to_img):
+            if len(self.idx_to_formula[idx]) > self.max_length:
+                continue
             new_idx_to_formula[new_idx] = self.idx_to_formula[idx]
             new_idx_to_img[new_idx] = self.idx_to_img[idx]
             new_idx += 1

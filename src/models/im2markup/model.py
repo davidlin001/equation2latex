@@ -13,7 +13,7 @@
 #   https://github.com/harvardnlp/im2markup
 
 import torch
-import torch.nn
+import torch.nn as nn
 
 from cnn import CNN
 from encoder import Encoder
