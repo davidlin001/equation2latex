@@ -21,9 +21,21 @@ from decoder import Decoder
 
 
 class Im2Latex(nn.Module):
-    """ A PyTorch implementation of the translation model proposed by
+    """ This module implemetns the translation model put forth by 
     Guillaume Genthial and Romain Sauvestre for the Im2Latex-100k
-    dataset.
+    dataset. 
+
+    This model utilizes 2 distinct layers:
+
+        1) An Encoder layer consisting of a deep convolutional neural
+            network that that encodes the raw input images of shape
+            (C, H, W) into feature maps of (H', W', D), where H'
+            and W' are the resultant feature map height and width
+            and D is the number of channels.
+
+        2) A Decoder layer consisting of some variant of a recurrent
+        neural network (typically an LSTM) to decode the output feature
+        maps from the Encoder layer.
     """
     
     ####################################################################
