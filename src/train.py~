@@ -35,26 +35,18 @@ PLOT_NAME = "${dset}-${metric}-${epoch}.png"
 PLOT_PATH = Template(os.path.join(PLOT_DIR, PLOT_NAME))
 PLOT_TITLE = Template("${dset} ${metric} vs epoch")
 
+# Special vocabulary tokens and indexes
 START = "<START>"
 END = "<END>"
 PAD = "<PAD>"
 UNK = "<UNK>"
+START_IDX = 0
+END_IDX = 1
+PAD_IDX = 2
+UNK_IDX = 3
 
-MAX_LENGTH = 50
-EMBED_SIZE = 80
 # Use GPU if available, otherwise use CPU
 USE_CUDA = torch.cuda.is_available()
-
-###########################################################################
-#### TODO: Find a way to process images of similar sizes. Currently,   ####
-#### images will be placed into mini-batches randomly, but often times ####
-#### there will be at least one image that has the largest dimension,  ####
-#### o we end up training having standardize the images to that size   ####
-#### to process the images as a batch. If we can somehow group the     ####
-#### images inte buckets as suggested by the papers, then this would   ####
-#### improve training and evaluatio efficiency considerably.           ####
-###########################################################################
-
 
 def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, 
             metrics, index_to_token, token_to_index, **kwargs):
@@ -70,7 +62,7 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats,
             A torch model implementation that we would like train.
         loss_fn : torch.nn.Module
             The loss function we would like optimizer our model on.
-        optimizer : torch.optim.optimizer/
+        optimizer : torch.optim.optimizer
             The optimizer function we would like to use.
         train_dataset : torch.utils.data.Dataset
             A Dataset instance containing the training images and their LaTeX
@@ -122,170 +114,31 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats,
     """
 
     # Get keyword parameter values
-    batch_size = kwargs.get("batch_size", 20)
+    batch_size = kwargs.get("batch_size", 10)
     start_epoch = kwargs.get("start_epoch", 1)
-    num_epochs = kwargs.get("num_epochs", 20)
+    num_epochs = kwargs.get("num_epochs", 100)
     save_every = kwargs.get("save_every", 10)
-    split_ratio = kwargs.get("split_ratio", 0.8)
 
     # Training loop
     for t in range(start_epoch, num_epochs + 1):
+        
+        print("Epoch {}...".format(t))
+
         model = train_on_batches(model, loss_fn, optimizer, train_dataset, batch_size, index_to_token, token_to_index)
-        train_results = eval_on_batches(model, train_dataset, metrics, batch_size)
-        val_results = eval_on_batches(model, val_dataset, metrics, batch_size) 
+        train_results = eval_on_batches(model, train_dataset, metrics, batch_size, index_to_token, token_to_index)
+        val_results = eval_on_batches(model, val_dataset, metrics, batch_size, index_to_token, tt[:lst.index(END)+1] for lst in batch_formulas)
 
-        # Update run statistics
-        for metric, val in train_results.items():
-            run_stats["train"][metric].append(val)
-        for metric, val in val_results.items():
-            run_stats["val"][metric].append(val)
-
-        # Save checkpoint
-        if save_every != 0 and t % save_every == 0:
+        # Compute metric values
+        batch_results = collections.defaultdict(list)
+        for mname, mfunc in metrics.items():
+            batch_results[mname].append(mfunc(batch_preds, batch_formulas))
             
-            state = (
-                model.get_state_dict(), 
-                optimizer.get_state_dict(), 
-                run_stats, 
-                t,
-            )
-            checkpoint_name = os.path.join(CHECKPOINT_DIRECTORY,
-                                    "checkpoint-epoch-{}.pth.tar".format(t))
-            save_checkpoint(state, checkpoint_name)
+    # Average the results
+    results = dict()
+    for mname, mvals in batch_results.items():
+        results[mname] = sum(mvals) / len(mvals)
 
-            # Plot run statistics
-            # TODO: Code below should be factored into a utility function
-            for metric in metrics:
-                train_keywords = { 
-                    "dset" : "train", 
-                    "metric" : metric, 
-                    "epoch" : t 
-                }
-                train_plot_path = os.path.join(PLOT_PATH.substitute(keywords))
-                train_plot_title = PLOT_TITLE.substitute(keywords)
-                generate_time_series_plot(run_stats["train"][metric], 
-                                          train_plot_path,
-                                          ylabel=metric,
-                                          title=train_plot_title)
-    
-                val_key_words = { 
-                    "dset" : "val", 
-                    "metric" : metric, 
-                    "epoch" : t,
-                }
-                val_plot_path = os.path.join(PLOT_PATH.substitute(keywords))
-                val_plot_title = PLOT_TITLE.substitue(keywords)
-                generate_time_series_plot(run_stats["val"][metric],
-                                          val_plot_path,
-                                          ylabel=metric,
-                                          title=val_plot_title)
-
-
-    return model
-
-
-def train_on_batches(model, loss_fn, optimizer, dataset, batch_size, index_to_token, token_to_index):
-    """ Trains the |model| for a single epoch on the provided |dataset|. 
-    The model is optimized with respect to the |loss_fn| using the
-    |optimizer|. Examples are processed in batches of size |batch_size|. 
-
-    Inputs:
-        model : torch.nn.Module
-            A torch implementation of the model we would like to train.
-        loss_fn : torch.nn.Module
-            The loss function we optimize our loss function for.
-        optimizer : torch.optim.optimizer
-            The optimizer function we use to train our model.
-        dataset : torch.utils.data.Dataset
-            A Dataset instance containing the training images and their
-            LaTeX formulas.
-        batch_size : int
-            The number of examples to process in parallel.
-
-    Outputs:
-        model : torch.nn.Module
-            The model, trained for a full epoch
-        loss : float
-            The average loss across all examples in the training set.
-    """
-    
-    # Initialize loss
-    loss = 0.0
-
-    # Process batches
-    dataloader = DataLoader(dataset, batch_size=batch_size, 
-                            shuffle=True, collate_fn=collate_fn) 
-    for batch_images, batch_formulas in dataloader:
-        loss_i = 0.0
-        # Load batch to GPU
-        if USE_CUDA:
-            torch.cuda.empty_cache()
-            batch_images = batch_images.cuda()
-
-        # Forward pass
-        all_scores, all_indices = model(batch_images)
-        #batch_preds = model(batch_images) 
-        max_length, batch_size = all_indices.shape
-        for i in range(max_length):
-            scores_i = all_scores[i, :, :]
-            targets_i = [token_to_index.get(s, 3) for s in np.array(batch_formulas)[:,i]]
-            targets_i = torch.LongTensor(targets_i)
-            loss_i += torch.sum(loss_fn(scores_i, targets_i))
-            
-        # Backward pass
-        optimizer.zero_grad()
-        loss_i.backward()
-        optimizer.step()
-        loss += loss_i
-    # Average loss
-    loss /= len(dataset)
-    return model, loss
-
-
-def eval_on_batches(model, dataset, metrics, batch_size):
-    """ Evaluates the |model| on the provided |features| and |labels|.
-    Examples are processed in batches of size |batch_size|.
-
-    Inputs:
-        model : torch.nn.Module
-            A torch implementation of our model.
-        dataset : torch.utils.data.Dataset
-            A Dataset instance containing the images and their LaTeX
-            formulas.
-        batch_size : int
-            The number of examples to process in parallel.
-
-    Outputs:
-        acc : float
-            The accuracy of the model on the provided dataset. 
-    """
-    
-    # Initialize accuracy
-    correct = 0
-    total = 0
-
-    # Process batches
-    dataloader = DataLoader(dataset, batch_size=batch_size,
-                            shuffle=True, collate_fn=collate_fn)
-    for batch_images, batch_formulas in dataloader:
-    
-        # Load batch
-        if USE_CUDA:
-            torch.cuda.empty_cache()
-            batch_images = batch_images.cuda()
-
-        # Score predictions
-        # batch_preds = model(batch_images)
-
-        ##############################################
-        #### TODO: Specify proper scoring metrics ####
-        #### Raw accuracy is too harsh for our    ####
-        #### models... should use something a bit ####
-        #### more holistic.                       ####
-        ##############################################
-
-    acc = 0
-    return acc
+    return results
 
 
 def collate_fn(data):
@@ -352,16 +205,19 @@ def standardize_dims(images):
 
     return new_images  
 
+
 def generate_vocab_mapping(vocab_path):
-    index_to_token = {0: START, 1: END, 2: PAD, 3:UNK}
-    token_to_index = {START: 0, END: 1, PAD: 2, UNK:3}
+    # Add special vocabulary tokens first
+    index_to_token = {START_IDX: START, END_IDX: END, PAD_IDX: PAD, UNK_IDX: UNK}
+    token_to_index = {START: START_IDX, END: END_IDX, PAD: PAD_IDX, UNK: UNK_IDX}
+
+    # Add the rest of the vocab tokens
     with open(vocab_path,"r") as f:
-        idx = 4
         for token in f:
             token = token.strip()
-            index_to_token[idx] = token
-            token_to_index[token] = idx
-            idx += 1
+            index_to_token[len(index_to_token)] = token
+            token_to_index[token] = len(token_to_index)
+
     return index_to_token, token_to_index
         
     
@@ -369,6 +225,11 @@ if __name__ == "__main__":
 
     # Verify that everything is working as it should...
     
+    # Run parameters
+    MAX_LENGTH = 150
+    EMBED_SIZE = 100
+    SAVE_EVERY = 10
+
     # Filepaths to datasets
     images_path = "../data/sample/images_processed"
     formulas_path = "../data/sample/formulas.norm.lst"
@@ -376,25 +237,32 @@ if __name__ == "__main__":
     validate_path = "../data/sample/validate_filter.lst"
     test_path = "../data/sample/test_filter.lst"
     vocab_path = "../data/sample/latex_vocab.txt"
+    
     # Load the datasets
-    train_dataset = Im2LatexDataset(images_path, formulas_path, train_path)
-    val_dataset = Im2LatexDataset(images_path, formulas_path, validate_path)
-    test_dataset = Im2LatexDataset(images_path, formulas_path, test_path)
-
-
+    train_dataset = Im2LatexDataset(images_path, formulas_path, train_path, MAX_LENGTH)
+    val_dataset = Im2LatexDataset(images_path, formulas_path, validate_path, MAX_LENGTH)
+    test_dataset = Im2LatexDataset(images_path, formulas_path, test_path, MAX_LENGTH)
     index_to_token, token_to_index = generate_vocab_mapping(vocab_path)
 
     # Try out the train function
-    decoder_config = {"vocab_size": len(index_to_token), "max_length": MAX_LENGTH, "embed_size": EMBED_SIZE}
+    decoder_config = {
+        "vocab_size": len(index_to_token), 
+        "max_length": MAX_LENGTH, 
+        "embed_size": EMBED_SIZE,
+    }
     model = Im2Latex(decoder_config)
+    model = model.cuda() if USE_CUDA else model
     optimizer = optim.Adam(model.parameters())
     loss_fn = nn.CrossEntropyLoss()
     run_stats = {
         "train" : collections.defaultdict(list),
         "val" : collections.defaultdict(list),
-        "test" : collections.defaultdict(list),
     }
-    kwargs = {}
-    metrics = {"edit_distance": edit_distance_score}
+    kwargs = { 
+        "save_every" : SAVE_EVERY
+    }
+    metrics = { 
+        "edit_distance" : edit_distance_score 
+    }
     model = train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats, metrics, index_to_token, token_to_index, **kwargs)
 

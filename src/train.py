@@ -132,7 +132,174 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats,
                                 index_to_token, token_to_index)
         val_results 
             = eval_on_batches(model, val_dataset, metrics, batch_size, 
-                                index_to_token, tt[:lst.index(END)+1] for lst in batch_formulas]
+                                index_to_token, token_to_index) 
+
+        train_results["loss"] = train_loss
+        val_results["loss"] = val_loss
+
+        # Update run statistics
+        for metric, val in train_results.items():
+            run_stats["train"][metric].append(float(val))
+        for metric, val in val_results.items():
+            run_stats["val"][metric].append(float(val))
+
+        # Save checkpoint and plots
+        if save_every != 0 and t % save_every == 0:
+            save_checkpoint(model, optimizer, run_stats, t)
+            plot_metric_scores(run_stats, t)
+
+
+    return model
+
+def save_checkpoint(model, optimizer, run_stats, epoch):
+    """ Creates a checkpoint of the current |model|. The state dictionaries
+    for the |model| and |optimizer|, the |run_stats| so far, and the current
+    |epoch|, are saved to disk.
+
+    Inputs:
+        model : torch.nn.Module
+            A torch model implementation that we would like train.
+        optimizer : torch.optim.Optimizer
+            The optimizer function we would like to use.
+        run_stats : dict of defaultdicts
+            Stores run metric values that we would like to track
+            throughout training, such as the training loss,
+            training and validation accuracies, etc. 
+        epoch : int
+            The current epoch number.
+
+    Outputs:
+        None, but a checkpoint is saved to disk.
+    """
+    state = (model.state_dict(), optimizer.state_dict(), run_stats, t)
+    checkpoint_name = CKPT_PATH.substitute({"epoch" : epoch})
+    torch.save(state, checkpoint_name)
+
+
+def plot_metric_scores(run_stats, epoch):
+    """ Plots the |run_stats| for each tracked metric up to the current |epoch|
+    for both the training and validation sets. 
+
+    Inputs:
+        run_stats : dict of defaultdicts
+            Stores run metric values that we would like to track
+            throughout training, such as the training loss,
+            training and validation accuracies, etc. 
+        epoch : int
+            The current epoch number.
+
+    Outputs:
+        None, but plots are saved to disk.
+    """
+    for dset in run_stats:
+        for metric in run_stats[dset]:
+            keywords = {"dset" : dset, "metric" : metric, "epoch" : epoch}
+            plot_path = os.path.join(PLOT_PATH.substitute(keywords))
+            plot_title = PLOT_TITLE.substitute(keywords)
+            generate_time_series_plot(run_stats[dset][metric], plot_path, 
+                                        ylabel=metric, title=plot_title)
+
+
+def train_on_batches(model, loss_fn, optimizer, dataset, batch_size, index_to_token, token_to_index, optimize=True):
+    """ Trains the |model| for a single epoch on the provided |dataset|. 
+    The model is optimized with respect to the |loss_fn| using the
+    |optimizer|. Examples are processed in batches of size |batch_size|. 
+
+    Inputs:
+        model : torch.nn.Module
+            A torch implementation of the model we would like to train.
+        loss_fn : torch.nn.Module
+            The loss function we optimize our loss function for.
+        optimizer : torch.optim.optimizer
+            The optimizer function we use to train our model.
+        dataset : torch.utils.data.Dataset
+            A Dataset instance containing the training images and their
+            LaTeX formulas.
+        batch_size : int
+            The number of examples to process in parallel.
+
+    Outputs:
+        model : torch.nn.Module
+            The model, trained for a full epoch
+        loss : float
+            The average loss across all examples in the training set.
+    """
+    
+    # Initialize loss
+    loss = 0.0
+
+    # Process batches
+    dataloader = DataLoader(dataset, batch_size=batch_size, 
+                            shuffle=True, collate_fn=collate_fn) 
+    for batch_images, batch_formulas in dataloader:
+
+        # Load batch to GPU
+        if USE_CUDA:
+            torch.cuda.empty_cache()
+            batch_images = batch_images.cuda()
+
+        # Forward pass
+        loss_i = 0.0
+        all_scores, all_indices = model(batch_images)
+        max_length, batch_size = all_indices.shape
+        for i in range(max_length):
+            scores_i = all_scores[i, :, :]
+            targets_i = [token_to_index.get(s, 3) for s in np.array(batch_formulas)[:,i]]
+            targets_i = torch.LongTensor(targets_i).cuda()
+            loss_i += torch.sum(loss_fn(scores_i, targets_i))
+        loss += loss_i    
+
+        # Backward pass
+        optimizer.zero_grad()
+        loss_i.backward()
+        optimizer.step()
+
+    # Average loss
+    loss /= len(dataset)
+    return model, loss
+
+
+def eval_on_batches(model, dataset, metrics, batch_size, index_to_token, token_to_index):
+    """ Evaluates the |model| on the provided |features| and |labels|.
+    Examples are processed in batches of size |batch_size|.
+
+    Inputs:
+        model : torch.nn.Module
+            A torch implementation of our model.
+        dataset : torch.utils.data.Dataset
+            A Dataset instance containing the images and their LaTeX
+            formulas.
+        batch_size : int
+            The number of examples to process in parallel.
+        index_to_token : dict
+            Maps integer IDs to unique vocabulary tokens.
+        token_to_index : dict
+            Maps vocabulary tokens to unique integer IDs.
+
+    Outputs:
+        results : dict
+            Stores the computed metric scores on the given |dataset| for
+            each metric in |metrics|.
+    """
+
+    # Process batches
+    dataloader = DataLoader(dataset, batch_size=batch_size,
+                            shuffle=True, collate_fn=collate_fn)
+    for batch_images, batch_formulas in dataloader:  
+
+        # Load batch
+        if USE_CUDA:
+            torch.cuda.empty_cache()
+            batch_images = batch_images.cuda()
+
+        # Get predicted tokens
+        all_scores, all_indices = model(batch_images)
+        all_tokens = all_indices.tolist()
+        all_tokens = [[index_to_token[idx] for idx in ex] for ex in all_tokens]
+
+        # Remove PAD tokens for metric computations
+        batch_preds = [lst[:lst.index(END)+1] if END in lst else lst for lst in all_tokens]
+        batch_formulas = [lst[:lst.index(END)+1] for lst in batch_formulas]
 
         # Compute metric values
         batch_results = collections.defaultdict(list)
