@@ -73,9 +73,7 @@ class Im2Latex(nn.Module):
                 A mini-batch of idxs into the vocabulary that that can
                 be decoded to determine the predicted LaTeX.
         """
-        print("Before encoder", x.shape)
         out = self.encoder(x)
-        print("After encoder", out.shape)
         out = self.decoder(out)
         return out
 
