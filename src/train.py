@@ -124,15 +124,9 @@ def train(model, loss_fn, optimizer, train_dataset, val_dataset, run_stats,
         
         print("Epoch {}...".format(t))
 
-        model
-            = train_on_batches(model, loss_fn, optimizer, train_dataset, 
-                                batch_size, index_to_token, token_to_index)
-        train_results 
-            = eval_on_batches(model, train_dataset, metrics, batch_size, 
-                                index_to_token, token_to_index)
-        val_results 
-            = eval_on_batches(model, val_dataset, metrics, batch_size, 
-                                index_to_token, token_to_index) 
+        model = train_on_batches(model, loss_fn, optimizer, train_dataset, batch_size, index_to_token, token_to_index)
+        train_results = eval_on_batches(model, train_dataset, metrics, batch_size, index_to_token, token_to_index)
+        val_results = eval_on_batches(model, val_dataset, metrics, batch_size, index_to_token, token_to_index) 
 
         train_results["loss"] = train_loss
         val_results["loss"] = val_loss
