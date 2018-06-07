@@ -3,12 +3,16 @@ import torchvision
 import torchvision.transforms as T
 import random
 import numpy as np
-from scipy.ndimage.filters import gaussian_filter1d
 import matplotlib.pyplot as plt
 from PIL import Image
 import sys
+from train import generate_vocab_mapping
 sys.path.insert(0, "./models/im2markup/")
 from utils.dataset import Im2LatexDataset
+from models.im2latex.model import Im2Latex
+
+MAX_LENGTH = 50
+EMBED_SIZE = 80
 
 def preprocess(img, size=224):
     transform = T.Compose([
@@ -68,8 +72,10 @@ def compute_saliency_maps(X, y, model):
 
 def show_saliency_maps(X, y, model):
     # Convert X and y from numpy arrays to Torch Tensors
-    X_tensor = preprocess(Image.fromarray(X))
-    y_tensor = torch.LongTensor(y)
+    #X_tensor = preprocess(Image.fromarray(X))
+    X_tensor = preprocess(X)
+
+    y_tensor = torch.CharTensor(y)
 
     # Compute saliency maps for images in X
     saliency = compute_saliency_maps(X_tensor, y_tensor, model)
@@ -88,6 +94,26 @@ def show_saliency_maps(X, y, model):
     plt.show()
 
 if __name__ == "__main__":
+    images_path = "../data/sample/images_processed/"
+    formulas_path = "../data/sample/formulas.norm.lst"
+    train_path = "../data/sample/train_filter.lst"
+    vocab_path = "../data/sample/latex_vocab.txt"
+
+    dataset = Im2LatexDataset(images_path, formulas_path, train_path)
+    index_to_token, token_to_index = generate_vocab_mapping(vocab_path)
+    X = Image.open(images_path + dataset.idx_to_img[0])
+    equation = dataset.idx_to_formula[0]
+    
+    print(equation)
+    y = [] 
+    for token in equation: 
+        y.append(token_to_index[token])
+    
+    print(y)
+    decoder_config = {"vocab_size": len(index_to_token), "max_length": MAX_LENGTH, "embed_size": EMBED_SIZE}
+    model = Im2Latex(decoder_config)
+
+
     show_saliency_maps(X, y, model)
     
         
